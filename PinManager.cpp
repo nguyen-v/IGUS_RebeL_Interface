@@ -1,7 +1,7 @@
 #include "PinManager.h"
 #include <Arduino.h>
 
-Adafruit_MCP23X17 PinManager::mcp;
+static Adafruit_MCP23X17 PinManager::mcp;
 
 void PinManager::setup_pins() {
 
