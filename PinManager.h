@@ -38,7 +38,8 @@ public:
   static const int PIN_HAND_RX = 14;
 
   // Coin detector
-  static const int PIN_CCTALK = 8;
+  static const int PIN_CCTALK_RX = 8;
+  static const int PIN_CCTALK_TX = 9;
 
   // Solenoid
   static const int PIN_SOLENOID = 3;

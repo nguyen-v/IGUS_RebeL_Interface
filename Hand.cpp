@@ -1,6 +1,6 @@
 #include "Hand.h"
-#include <Arduino.h>
 #include "PinManager.h"
+#include <Arduino.h>
 
 static const float Hand::min_values[HAND_DOFS] = MIN_VALUES;
 static const float Hand::max_values[HAND_DOFS] = MAX_VALUES;
@@ -11,7 +11,6 @@ static const int Hand::sign[HAND_DOFS] = SIGN;
 Hand::Hand() {
   maestro_serial = new SoftwareSerial(PinManager::PIN_HAND_RX, PinManager::PIN_HAND_TX);
   maestro = new MicroMaestro(*maestro_serial);
-
 }
 
 void Hand::init() {

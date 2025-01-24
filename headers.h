@@ -26,7 +26,7 @@
 	#define verify_money_out 124
 	#define pay_money_out 125
 	#define clear_money_counter 126
-	#define request money_out 127
+	#define request_money_out 127
 	#define request_money_in 128
 	#define read_barcode_data 129
 	#define request_indexed_hopper_dispense_count 130
