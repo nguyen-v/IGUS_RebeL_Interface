@@ -148,7 +148,8 @@ void loop() {
 // Transitions ================================================================
 
 bool pick_coin_tran() {
-  if ((RobotArm::get_pose() == Poses::RESTING_POSE) || next) {
+  if (((RobotArm::get_pose() == Poses::RESTING_POSE) && coin_acceptor.coin_is_valid() 
+      && (digitalRead(PinManager::PIN_SENS_DW) == HIGH)) || next) {
     reset_next();
     return true;
   }
