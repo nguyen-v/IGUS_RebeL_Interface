@@ -327,13 +327,18 @@ void rest_cb() {
     case Poses::SPECIAL_MOVE_BIN_POSE:
       arm.send_command(RobotArm::Commands::SPECIAL_MOVE_BIN_TO_REST);
       break;
-    default:
+    case Poses::RESTING_POSE:
       // arm.send_command(RobotArm::Commands::REST_TO_REST);
+      // Open the solenoid
+      digitalWrite(PinManager::PIN_SOLENOID, LOW);
+      // Set LEDs to GREEN
+      digitalWrite(PinManager::PIN_LED_G, HIGH);
+      digitalWrite(PinManager::PIN_LED_R, LOW);
+      hand.close();
+      break;
+    default:
       break;
   }
-  // Open the solenoid
-  digitalWrite(PinManager::PIN_SOLENOID, LOW);
-  hand.close();
 }
 
 void pick_coin_cb() {
@@ -342,6 +347,9 @@ void pick_coin_cb() {
   hand.natural(); // natural hand pose
   // Close the solenoid
   digitalWrite(PinManager::PIN_SOLENOID, HIGH);
+  // Set LEDs to RED
+  digitalWrite(PinManager::PIN_LED_G, LOW);
+  digitalWrite(PinManager::PIN_LED_R, HIGH);
 }
 
 void pick_coin_ready_cb() {
