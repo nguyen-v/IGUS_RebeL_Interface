@@ -133,17 +133,21 @@ void Hand::drop_coin() {
 }
 
 void Hand::special_move_1() {
-  move(WAVE_VALUES, 15);
+  Serial.println(F("Special move 1..."));
+  move(SPECIAL_1_VALUES, 15);
 }
 
 void Hand::special_move_2() {
-
+  Serial.println(F("Special move 2..."));
+  move(SPECIAL_2_VALUES, 15);
 }
 
 void Hand::special_move_3() {
-
+  Serial.println(F("Special move 3..."));
+  move(SPECIAL_3_VALUES, 15);
 }
 
 void Hand::special_move_bin() {
-
+  Serial.println(F("Special move bin..."));
+  move(SPECIAL_BIN_VALUES, 15);
 }
