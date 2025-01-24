@@ -14,33 +14,33 @@ void RobotArm::send_command(uint16_t cmd) {
     uint16_t data4 = (cmd >> 4) & 0x01;
 
     // Write the bits to the output pins
-    digitalWrite(PinManager::PIN_DATA0_OUT, data0);
-    digitalWrite(PinManager::PIN_DATA1_OUT, data1);
-    digitalWrite(PinManager::PIN_DATA2_OUT, data2);
-    digitalWrite(PinManager::PIN_DATA3_OUT, data3);
-    digitalWrite(PinManager::PIN_DATA4_OUT, data4);
+    PinManager::mcp.digitalWrite(PinManager::PIN_DATA0_OUT, data0);
+    PinManager::mcp.digitalWrite(PinManager::PIN_DATA1_OUT, data1);
+    PinManager::mcp.digitalWrite(PinManager::PIN_DATA2_OUT, data2);
+    PinManager::mcp.digitalWrite(PinManager::PIN_DATA3_OUT, data3);
+    PinManager::mcp.digitalWrite(PinManager::PIN_DATA4_OUT, data4);
 
     // Trigger the acknowledgment signal
     delay(200); // Command propagation delay
-    digitalWrite(PinManager::PIN_ACK_OUT, HIGH);
+    PinManager::mcp.digitalWrite(PinManager::PIN_ACK_OUT, HIGH);
     print_command(cmd);
 }
 
-void RobotArm::enable_arm() {
-    digitalWrite(PinManager::PIN_ENABLE_OUT, HIGH);
+void RobotArm::enable() {
+    PinManager::mcp.digitalWrite(PinManager::PIN_ENABLE_OUT, HIGH);
     Serial.println(F("Enabling the arm..."));
 }
 
-void RobotArm::disable_arm() {
-    digitalWrite(PinManager::PIN_ENABLE_OUT, LOW);
+void RobotArm::disable() {
+    PinManager::mcp.digitalWrite(PinManager::PIN_ENABLE_OUT, LOW);
     Serial.println(F("Fault signal detected, disabling the arm..."));
 }
 
 void RobotArm::update_state() {
-  if (digitalRead(PinManager::PIN_FAULT_IN) == LOW)
-    enable_arm();
+  if (!PinManager::mcp.digitalRead(PinManager::PIN_FAULT_IN) == LOW)
+    enable();
   else
-    disable_arm();
+    disable();
 }
 
 void RobotArm::print_pose(uint16_t id) {
@@ -163,11 +163,15 @@ void RobotArm::print_command(uint16_t id) {
 
 void RobotArm::update_pose_state() {
   Serial.println(F("Update pose interrupt triggered"));
-  uint16_t data0 = digitalRead(PinManager::PIN_DATA0_IN);
-  uint16_t data1 = digitalRead(PinManager::PIN_DATA1_IN);
-  uint16_t data2 = digitalRead(PinManager::PIN_DATA2_IN);
-  uint16_t data3 = digitalRead(PinManager::PIN_DATA3_IN);
+  uint16_t data0 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA0_IN);
+  uint16_t data1 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA1_IN);
+  uint16_t data2 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA2_IN);
+  uint16_t data3 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA3_IN);
   pose_state = (data3 << 3) | (data2 << 2) | (data1 << 1) | (data0 << 0);
-  digitalWrite(PinManager::PIN_ACK_OUT, LOW);
+  PinManager::mcp.digitalWrite(PinManager::PIN_ACK_OUT, LOW);
   print_pose(pose_state);
+}
+
+uint16_t RobotArm::get_pose() {
+  return pose_state;
 }

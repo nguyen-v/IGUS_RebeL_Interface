@@ -1,31 +1,51 @@
 #include "PinManager.h"
 #include <Arduino.h>
 
+Adafruit_MCP23X17 PinManager::mcp;
+
 void PinManager::setup_pins() {
-  // Configure input pins
 
-  // Uno needs external pulldowns
-  pinMode(PIN_FAULT_IN, INPUT);
-  pinMode(PIN_DATA0_IN, INPUT);
-  pinMode(PIN_DATA1_IN, INPUT);
-  pinMode(PIN_DATA2_IN, INPUT);
-  pinMode(PIN_DATA3_IN, INPUT);
-  pinMode(PIN_ACK_IN, INPUT);
+  // Default address with A0..2 to GND is 0x20
+  if (!mcp.begin_I2C()) {
+    Serial.println("MCP23017 not found...");
+    while (1);
+  }
 
-  // Nano Every can use its internal pulldowns
-  // pinMode(PIN_FAULT_IN, INPUT_PULLDOWN);
-  // pinMode(PIN_DATA0_IN, INPUT_PULLDOWN);
-  // pinMode(PIN_DATA1_IN, INPUT_PULLDOWN);
-  // pinMode(PIN_DATA2_IN, INPUT_PULLDOWN);
-  // pinMode(PIN_DATA3_IN, INPUT_PULLDOWN);
-  // pinMode(PIN_ACK_IN, INPUT_PULLDOWN);
+  // MCP23017 ===============================================
+  // Configure input pins. There is an external 100k pull-up
+  // This means that digital HIGH inputs will be seen as LOW
+  // and digital LOW as HIGH.
+  mcp.pinMode(PIN_FAULT_IN, INPUT);
+  mcp.pinMode(PIN_DATA0_IN, INPUT);
+  mcp.pinMode(PIN_DATA1_IN, INPUT);
+  mcp.pinMode(PIN_DATA2_IN, INPUT);
+  mcp.pinMode(PIN_DATA3_IN, INPUT);
+  mcp.pinMode(PIN_ACK_IN, INPUT);
 
   // Outputs
-  pinMode(PIN_ENABLE_OUT, OUTPUT);
-  pinMode(PIN_DATA0_OUT, OUTPUT);
-  pinMode(PIN_DATA1_OUT, OUTPUT);
-  pinMode(PIN_DATA2_OUT, OUTPUT);
-  pinMode(PIN_DATA3_OUT, OUTPUT);
-  pinMode(PIN_DATA4_OUT, OUTPUT);
-  pinMode(PIN_ACK_OUT, OUTPUT);
+  mcp.pinMode(PIN_ENABLE_OUT, OUTPUT);
+  mcp.pinMode(PIN_DATA0_OUT, OUTPUT);
+  mcp.pinMode(PIN_DATA1_OUT, OUTPUT);
+  mcp.pinMode(PIN_DATA2_OUT, OUTPUT);
+  mcp.pinMode(PIN_DATA3_OUT, OUTPUT);
+  mcp.pinMode(PIN_DATA4_OUT, OUTPUT);
+  mcp.pinMode(PIN_ACK_OUT, OUTPUT);
+
+  // Setup interrupts
+  // No mirroring, open-drain, interrupts active LOW
+  mcp.setupInterrupts(false, true, LOW);
+  mcp.setupInterruptPin(PIN_ACK_IN, LOW);
+  mcp.setupInterruptPin(PIN_FAULT_IN, LOW);
+
+  // Arduino Nano Every ======================================
+  pinMode(PIN_INTA_FAULT_IN, INPUT_PULLUP);
+  pinMode(PIN_INTB_ACK_IN, INPUT_PULLUP);
+
+  pinMode(PIN_SOLENOID, OUTPUT);
+
+  pinMode(PIN_LED_R, OUTPUT);
+  pinMode(PIN_LED_G, OUTPUT);
+
+  pinMode(PIN_SENS_UP, INPUT_PULLDOWN);
+  pinMode(PIN_SENS_DW, INPUT_PULLDOWN);
 }

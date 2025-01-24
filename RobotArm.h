@@ -5,12 +5,14 @@
 
 class RobotArm {
 public:
-    // Sends a command to the robotic arm
-    static void send_command(uint16_t cmd);
+    
+    void init();
 
-    static void enable_arm();
+    void send_command(uint16_t cmd);
 
-    static void disable_arm();
+    static void enable();
+
+    static void disable();
 
     static void update_state();
 
@@ -58,6 +60,8 @@ public:
         SPECIAL_MOVE_BIN_POSE  // 15 (1111) -> Pose after the special move that was carried out at special location 'bin'
     };
 
+    static uint16_t get_pose();
+private:
     static void print_pose(uint16_t id);
     static void print_command(uint16_t id);
     static uint16_t pose_state;
