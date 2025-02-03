@@ -2,7 +2,9 @@
 #include <Arduino.h>
 #include "PinManager.h"
 
-static uint16_t RobotArm::pose_state = RobotArm::Poses::RESTING_POSE;
+uint16_t RobotArm::pose_state = RobotArm::Poses::RESTING_POSE;
+bool RobotArm::flag_update_state = false;
+bool RobotArm::flag_update_pose_state = false;
 
 void RobotArm::send_command(uint16_t cmd) {
     Serial.println(F("Sending command to the arm..."));
@@ -36,11 +38,28 @@ void RobotArm::disable() {
     Serial.println(F("Fault signal detected, disabling the arm..."));
 }
 
+void RobotArm::irq_update_state() {
+  digitalWrite(LED_BUILTIN, HIGH);
+  flag_update_state = true;
+}
+
 void RobotArm::update_state() {
-  if (!PinManager::mcp.digitalRead(PinManager::PIN_FAULT_IN) == LOW)
-    enable();
-  else
+  if (flag_update_state) {
+    flag_update_state = false;
+    Serial.println("Fault flag set.");
     disable();
+  }
+  if (flag_update_pose_state) {
+    Serial.println("Update pose state flag set.");
+    flag_update_pose_state = false;
+    uint16_t data0 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA0_IN);
+    uint16_t data1 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA1_IN);
+    uint16_t data2 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA2_IN);
+    uint16_t data3 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA3_IN);
+    pose_state = (data3 << 3) | (data2 << 2) | (data1 << 1) | (data0 << 0);
+    PinManager::mcp.digitalWrite(PinManager::PIN_ACK_OUT, LOW);
+    print_pose(pose_state);
+  }
 }
 
 void RobotArm::print_pose(uint16_t id) {
@@ -161,15 +180,9 @@ void RobotArm::print_command(uint16_t id) {
     }
 }
 
-void RobotArm::update_pose_state() {
-  Serial.println(F("Update pose interrupt triggered"));
-  uint16_t data0 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA0_IN);
-  uint16_t data1 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA1_IN);
-  uint16_t data2 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA2_IN);
-  uint16_t data3 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA3_IN);
-  pose_state = (data3 << 3) | (data2 << 2) | (data1 << 1) | (data0 << 0);
-  PinManager::mcp.digitalWrite(PinManager::PIN_ACK_OUT, LOW);
-  print_pose(pose_state);
+void RobotArm::irq_update_pose_state() {
+  digitalWrite(LED_BUILTIN, HIGH);
+  flag_update_pose_state = true;
 }
 
 uint16_t RobotArm::get_pose() {

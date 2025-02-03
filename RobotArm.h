@@ -14,9 +14,11 @@ public:
 
   static void disable();
 
-  static void update_state();
+  static void irq_update_state();
 
-  static void update_pose_state();
+  static void irq_update_pose_state();
+
+  static void update_state();
 
   // Enum for all possible arm commands
   enum Commands {
@@ -65,6 +67,7 @@ private:
   static void print_pose(uint16_t id);
   static void print_command(uint16_t id);
   static uint16_t pose_state;
+  static bool flag_update_state;
+  static bool flag_update_pose_state;
 };
-
 #endif

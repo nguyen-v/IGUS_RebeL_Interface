@@ -2,11 +2,11 @@
 #include "PinManager.h"
 #include <Arduino.h>
 
-static const float Hand::min_values[HAND_DOFS] = MIN_VALUES;
-static const float Hand::max_values[HAND_DOFS] = MAX_VALUES;
-static const uint16_t Hand::min_targets[HAND_DOFS] = MIN_TARGETS;
-static const uint16_t Hand::max_targets[HAND_DOFS] = MAX_TARGETS;
-static const int Hand::sign[HAND_DOFS] = SIGN;
+const float Hand::min_values[HAND_DOFS] = MIN_VALUES;
+const float Hand::max_values[HAND_DOFS] = MAX_VALUES;
+const uint16_t Hand::min_targets[HAND_DOFS] = MIN_TARGETS;
+const uint16_t Hand::max_targets[HAND_DOFS] = MAX_TARGETS;
+const int Hand::sign[HAND_DOFS] = SIGN;
 
 Hand::Hand() {
   maestro_serial = new SoftwareSerial(PinManager::PIN_HAND_RX, PinManager::PIN_HAND_TX);
@@ -14,7 +14,7 @@ Hand::Hand() {
 }
 
 void Hand::init() {
-  maestro_serial->begin(115200);
+  maestro_serial->begin(9600);
   for (uint8_t i = 0; i < HAND_DOFS; ++i) {
     maestro->setSpeed(i, 0);
     maestro->setAcceleration(i, 0);
@@ -23,7 +23,7 @@ void Hand::init() {
 }
 
 void Hand::update_state() {
-  Serial.println(F("Updating hand state..."));
+  // Serial.println(F("Updating hand state..."));
   bool completed = true;
   for (uint8_t i = 0; i < HAND_DOFS; ++i)
   {
@@ -31,11 +31,17 @@ void Hand::update_state() {
     if (current_targets[i] == -1)
       continue;
     if (abs(position - current_targets[i]) > target_thr) {
+      // Serial.print(position);
+      // Serial.print("  ");
+      // Serial.print(current_targets[i]);
+      // Serial.print("  ");
+      // Serial.println(abs(position - current_targets[i]));
       completed = false;
       break;
     }
   }
   if (completed) {
+    // Serial.println(F("Hand move completed"));
     moving = false;
   } else {
     moving = true;
@@ -52,6 +58,11 @@ void Hand::move(const float values[][HAND_DOFS], size_t num_rows) {
       last_row[j] = pgm_read_float(&(values[num_rows-1][j]));
     }
     values_to_target(last_row, current_targets);
+
+    update_state();
+
+    if (!moving)
+      return;
 
     // Then we move each finger
     for (size_t i = 0; i < num_rows; ++i) {
@@ -75,7 +86,7 @@ void Hand::move(const float values[][HAND_DOFS], size_t num_rows) {
     }
 }
 
-void Hand::values_to_target(const float values[HAND_DOFS], uint16_t targets[HAND_DOFS]) {
+void Hand::values_to_target(const float values[HAND_DOFS], int targets[HAND_DOFS]) {
     for (size_t i = 0; i < HAND_DOFS; ++i) {
         if (values[i] == -1) {
           targets[i] = -1;

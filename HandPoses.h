@@ -20,11 +20,11 @@ const float OPEN_VALUES[][HAND_DOFS] PROGMEM = {
 };
 
 const float CLOSE_VALUES[][HAND_DOFS] PROGMEM = {
-  {100, 100, 100, 10, 100},
+  {60, 60, 60, 10, 70},
 };
 
 const float POINTING_VALUES[][HAND_DOFS] PROGMEM = {
-  {10, 100, 100, 100, 100},
+  {10, 90, 90, 100, 90},
 };
 
 const float SPECIAL_1_VALUES[][HAND_DOFS] PROGMEM = {
@@ -100,15 +100,15 @@ const float SPECIAL_BIN_VALUES[][HAND_DOFS] PROGMEM = {
 };
 
 const float GRASPING_VALUES[][HAND_DOFS] PROGMEM = {
-  {30, 100, 100, 100, 20},
+  {50, 100, 100, 100, 50},
 };
 
 const float GRASPING_COIN_VALUES[][HAND_DOFS] PROGMEM = {
-  {70, -1, -1, 100, 65},
+  {70, -1, -1, 100, 67.5},
 };
 
 const float DROP_COIN_VALUES[][HAND_DOFS] PROGMEM = {
-  {30, -1, -1, 100, 20},
+  {50, -1, -1, 100, 50},
 };
 
 #endif

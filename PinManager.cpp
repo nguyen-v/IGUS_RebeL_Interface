@@ -1,7 +1,7 @@
 #include "PinManager.h"
 #include <Arduino.h>
 
-static Adafruit_MCP23X17 PinManager::mcp;
+Adafruit_MCP23X17 PinManager::mcp;
 
 void PinManager::setup_pins() {
 
@@ -10,6 +10,7 @@ void PinManager::setup_pins() {
     Serial.println("MCP23017 not found...");
     while (1);
   }
+  Serial.println("MCP23017 found...");
 
   // MCP23017 ===============================================
   // Configure input pins. There is an external 100k pull-up
@@ -31,21 +32,37 @@ void PinManager::setup_pins() {
   mcp.pinMode(PIN_DATA4_OUT, OUTPUT);
   mcp.pinMode(PIN_ACK_OUT, OUTPUT);
 
-  // Setup interrupts
-  // No mirroring, open-drain, interrupts active LOW
-  mcp.setupInterrupts(false, true, LOW);
-  mcp.setupInterruptPin(PIN_ACK_IN, LOW);
-  mcp.setupInterruptPin(PIN_FAULT_IN, LOW);
-
   // Arduino Nano Every ======================================
+  pinMode(LED_BUILTIN, OUTPUT);
   pinMode(PIN_INTA_FAULT_IN, INPUT_PULLUP);
   pinMode(PIN_INTB_ACK_IN, INPUT_PULLUP);
 
+  // Solenoid
   pinMode(PIN_SOLENOID, OUTPUT);
+  // Set the PWM frequency to 31.37255 kHz (not audible)
+  TCB1_CTRLA = 0b00000011;  // pin D3
 
   pinMode(PIN_LED_R, OUTPUT);
   pinMode(PIN_LED_G, OUTPUT);
 
-  pinMode(PIN_SENS_UP, INPUT_PULLDOWN);
-  pinMode(PIN_SENS_DW, INPUT_PULLDOWN);
+  // pinMode(PIN_SENS_UP, INPUT);
+  // pinMode(PIN_SENS_DW, INPUT);
+}
+
+bool PinManager::read_sensor_up() {
+  return (analogRead(PIN_SENS_UP) < sensor_thr);
+}
+
+bool PinManager::read_sensor_down() {
+  return (analogRead(PIN_SENS_DW) > sensor_thr);
+}
+
+void PinManager::open_solenoid() {
+  analogWrite(PIN_SOLENOID, 255);
+  delay(100);
+  analogWrite(PIN_SOLENOID, solenoid_pwm);
+}
+
+void PinManager::close_solenoid() {
+  analogWrite(PIN_SOLENOID, 0);
 }

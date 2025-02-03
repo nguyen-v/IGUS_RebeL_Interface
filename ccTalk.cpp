@@ -28,7 +28,7 @@ const char* const ccTalk::RX_msg[] = {"RXidle","RXloop","RXansw","RXcomplete","R
       "RXerr_msg_length","RXerr_checksum_failed"};
 
 size_t ccTalk::write(uint8_t c){
-  stream->write(c);
+  return stream->write(c);
 };
 
 int ccTalk::available(){
@@ -98,10 +98,10 @@ void ccTalk::device_init(){
   }
   if (RX_state != RXcomplete) {
     Serial.println(RX_msg[RX_state]);// Show the error
-    Serial.println("No answer to simple pool");
+    Serial.println(F("No answer to simple pool"));
     //while (1); // stop
   } else {
-    Serial.println("ccTalk device present");// simple pool was ok
+    Serial.println(F("ccTalk device present"));// simple pool was ok
   }
   // cctsend(reset_device, 2, 0); //ben added because credit buffer stays if power isn't reset
   // while (RX_state < RXcomplete) {
@@ -109,7 +109,7 @@ void ccTalk::device_init(){
   // }
   // if (RX_state != RXcomplete) //error handling
 
-  for (int i = 0; i < 16 ; i++) coin_value[i] = 0; // Clean the coin value array
+  // for (int i = 0; i < 16 ; i++) coin_value[i] = 0; // Clean the coin value array
 
   // Get coin ID, filter garbage convert and store in coin_value as unsigned int
   for (unsigned char i = 1; i < 17; i++) {
@@ -131,37 +131,105 @@ void ccTalk::device_init(){
     if ((65 > RX_buffer[4]) || (RX_buffer[4] > 90) || (65 > RX_buffer[5]) || (RX_buffer[5] > 90) || (65 > RX_buffer[9]) || (RX_buffer[9] > 90)) break;
     if ((48 > RX_buffer[6]) || (RX_buffer[6] > 57) || (48 > RX_buffer[7]) || (RX_buffer[7] > 57) || (48 > RX_buffer[8]) || (RX_buffer[8] > 57)) break;
     printASCIIdata();// Print ASCII coin ID
-    coin_value[i - 1] = (RX_buffer[6] - 48) * 100 + (RX_buffer[7] - 48) * 10 + RX_buffer[8] - 48;
+    // coin_value[i - 1] = (RX_buffer[6] - 48) * 100 + (RX_buffer[7] - 48) * 10 + RX_buffer[8] - 48;
   }
-  Serial.println("Coin values OK");
-  Serial.println("Setting individual inhibits");
+  Serial.println(F("Coin values OK"));
+  Serial.println(F("Setting individual inhibits"));
   cctsend(modify_inhibit_status, 2, 2, 255, 255); //just enable all channels
   while (RX_state < RXcomplete) {
     ccTalkReceive();
   }
   if (RX_state != RXcomplete) {
     Serial.println(RX_msg[RX_state]);// Show the error if any
-    Serial.println("No answer to modify_inhibit_status");
+    Serial.println(F("No answer to modify_inhibit_status"));
   }
   if (RX_buffer[3] == 0) Serial.println("OK");
   else {
-   Serial.println("Error setting inhibits");
+   Serial.println(F("Error setting inhibits"));
   }
 
-  Serial.println("Setting master inhibit");
+  Serial.println(F("Setting master inhibit"));
   cctsend(modify_master_inhibit_status, 2, 1, 1);
   while (RX_state < RXcomplete) {
     ccTalkReceive();
   }
   if (RX_state != RXcomplete) {
     Serial.println(RX_msg[RX_state]);// Show the error if any
-    Serial.println("No answer to modify_master_inhibit_status");
+    Serial.println(F("No answer to modify_master_inhibit_status"));
   }
   if (RX_buffer[3] == 0) Serial.println("OK");
   else {
-   Serial.println("Error setting master inhibit");
+   Serial.println(F("Error setting master inhibit"));
   }
 
+}
+
+unsigned long ccTalk::get_reject_counter() {
+    // Send the request_reject_counter command (header 194)
+    cctsend(request_reject_counter, 2, 0);
+
+    // Wait for the response
+    while (RX_state < RXcomplete) {
+        ccTalkReceive(); // Process incoming data
+    }
+
+    // Debug: Check RX state
+    if (RX_state != RXcomplete) {
+        Serial.print(F("Error in communication: "));
+        Serial.println(RX_msg[RX_state]); // Print error message
+        return 0; // Return 0 if there's an error
+    }
+
+    // Validate response length (must be at least 3 bytes for counts)
+    if (RX_buffer[1] >= 3) {
+        // Extract the 24-bit counter: count1 + 256 * count2 + 65536 * count3
+        unsigned long reject_counter = RX_buffer[4] + 
+                                       (RX_buffer[5] << 8) + 
+                                       (RX_buffer[6] << 16);
+
+        // Debug: Print the parsed reject counter
+        // Serial.print(F("Parsed Reject Counter: "));
+        // Serial.println(reject_counter);
+
+        return reject_counter;
+    } else {
+        Serial.println(F("Invalid response length for reject counter."));
+        return 0;
+    }
+}
+
+unsigned long ccTalk::get_insertion_counter() {
+    // Send the request_reject_counter command (header 194)
+    cctsend(request_insertion_counter, 2, 0);
+
+    // Wait for the response
+    while (RX_state < RXcomplete) {
+        ccTalkReceive(); // Process incoming data
+    }
+
+    // Debug: Check RX state
+    if (RX_state != RXcomplete) {
+        Serial.print(F("Error in communication: "));
+        Serial.println(RX_msg[RX_state]); // Print error message
+        return 0; // Return 0 if there's an error
+    }
+
+    // Validate response length (must be at least 3 bytes for counts)
+    if (RX_buffer[1] >= 3) {
+        // Extract the 24-bit counter: count1 + 256 * count2 + 65536 * count3
+        unsigned long insertion_counter = RX_buffer[4] + 
+                                       (RX_buffer[5] << 8) + 
+                                       (RX_buffer[6] << 16);
+
+        // Debug: Print the parsed reject counter
+        // Serial.print(F("Parsed Insertion Counter: "));
+        // Serial.println(insertion_counter);
+
+        return insertion_counter;
+    } else {
+        Serial.println(F("Invalid response length for insertion counter."));
+        return 0;
+    }
 }
 
 char * ccTalk::get_master_inhibit(){
@@ -270,13 +338,14 @@ void ccTalk::diagnostic(){
 }
 
 int ccTalk::read_coin(){
+  // Serial.println("Reading coin");
   cctsend(read_buffered_credit_or_error_codes, 2, 0);
     while (RX_state < RXcomplete) {
       ccTalkReceive();
     }
     if (RX_state != RXcomplete) {
       Serial.println(RX_msg[RX_state]);// Show the error if any
-      Serial.println("Stopped");
+      Serial.println(F("Stopped"));
       return INVALID_COIN; 
     }
 
@@ -294,42 +363,49 @@ int ccTalk::read_coin(){
     
     while (buffered_events > 0) {// Read buffered events one by one
       buffered_events--;
+      for (uint8_t i = 0; i < 7; ++i) {
+        Serial.print(RX_buffer[(buffered_events << 2) + i]);
+        Serial.print(" ");
+      }
+      Serial.println();
       coineventcounter = (coineventcounter + 1) % 256;//increment event counter
       if (coineventcounter == 0) coineventcounter = 1; // skip 0
       if (RX_buffer[(buffered_events << 2) + 5] == 0) { // event A = 0 means an error or coin rejected
-        Serial.print("Some error or coin rejected, error code: ");
+        Serial.print(F("Some error or coin rejected, error code: "));
         Serial.println(RX_buffer[(buffered_events << 2) + 6]);// then event B is the error code
         return INVALID_COIN;
       } else {
         int coin_real_value = 0;
-        switch(coin_value[RX_buffer[(buffered_events << 2) + 5] - 1])
+        // switch(coin_value[RX_buffer[(buffered_events << 2) + 5] - 1])
+        switch(RX_buffer[(buffered_events << 2) + 5])
         {
-          case 200:
+          case 1:
             coin_real_value = CHF_500;
             break;
-          case 100:
+          case 2:
             coin_real_value = CHF_200;
             break;
-          case 50:
+          case 3:
             coin_real_value = CHF_100;
             break;
-          case 20:
+          case 4:
             coin_real_value = CHF_050;
             break;
-          case 10:
+          case 5:
             coin_real_value = CHF_020;
             break;
-          case 5:
+          case 6:
             coin_real_value = CHF_010;
             break;
           default:
-            coin_real_value = NO_COINS;
+            coin_real_value = INVALID_COIN;
         }
         print_coin_value(coin_real_value);
         buffered_events = 0;
         return coin_real_value;
       }
     }
+    return INVALID_COIN;
 }
 
 void ccTalk::print_coin_value(uint8_t value) {

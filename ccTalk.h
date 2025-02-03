@@ -60,6 +60,8 @@ public:
   void inhibit_on(); //disable coins (all individual channels)
   void inhibit_off(); //enable coins (all individual channels)
   int read_coin(); //get credits
+  unsigned long get_reject_counter();
+  unsigned long get_insertion_counter();
   void breakrx();// flush the RX buffer - Usable from any RX state 
   void clearrxerror();// flush the buffer without restarting the timer, usable only from RX error states
 
@@ -92,14 +94,14 @@ public:
     CHF_500        // 5 CHF
   };
 
+  static void print_coin_value(uint8_t value);
+
 private:
   Stream
     *stream;
 
   char get_data[MAXDATALENGTH];
   int length;
-
-  static void print_coin_value(uint8_t value);
 
   milistimer comt;
   milistimer somedelay;// to handle the break after a comm error
