@@ -145,12 +145,12 @@ void Hand::drop_coin() {
 
 void Hand::special_move_1() {
   Serial.println(F("Special move 1..."));
-  move(SPECIAL_1_VALUES, 15);
+  move(SPECIAL_1_VALUES, 20);
 }
 
 void Hand::special_move_2() {
   Serial.println(F("Special move 2..."));
-  move(SPECIAL_2_VALUES, 15);
+  move(SPECIAL_2_VALUES, 7);
 }
 
 void Hand::special_move_3() {

@@ -32,6 +32,10 @@ void CoinAcceptor::init() {
   cctalk->inhibit_off();
   Serial.println(F("Ready to accept coins"));
 
+  insertion_counter = cctalk->get_insertion_counter();
+  Serial.println(F("Initial insertion counter: "));
+  Serial.print(insertion_counter);
+  Serial.println();
   update_state();
 }
 
@@ -63,34 +67,51 @@ bool CoinAcceptor::update_state() {
   // Serial.println("loop entry");
   // for (uint8_t i = 0; i < 5; ++i) {
   uint8_t temp_coin = cctalk->read_coin();
-  if ((temp_coin != Coins::INVALID_COIN) && (temp_coin != Coins::NO_COINS))
+  if ((temp_coin != Coins::INVALID_COIN) && (temp_coin != Coins::NO_COINS)) {
     current_coin = temp_coin;
+    ccTalk::print_coin_value(current_coin);
+    Serial.println("return");
+    return true;
+  }
   // // delay(10);
   // // temp_coin = cctalk->read_coin();
   // // delay(50);
-  // int current_reject_counter = cctalk->get_reject_counter();
+  int current_reject_counter = cctalk->get_reject_counter();
   // // delay(50);
-  int current_insertion_counter = cctalk->get_insertion_counter();
+  // int current_insertion_counter = cctalk->get_insertion_counter();
   // delay(10);
   // }
   // delay(50);
   // temp_coin = cctalk->read_coin();
+  // int num_new_coins = current_insertion_counter - insertion_counter;
+  // Serial.print(F("Insertion counter new: "));
+  // Serial.print(current_insertion_counter);
+  // Serial.print(F(" old: "));
+  // Serial.print(insertion_counter);
+  // Serial.println();
 
-  if (current_insertion_counter > insertion_counter) {
-    insertion_counter = current_insertion_counter;
-    return true;
-  }
-  return false;
-  //   if (current_reject_counter > reject_counter) {
-  //     reject_counter = current_reject_counter;
-  //     current_coin = Coins::INVALID_COIN;
-  //   } else {
-  //     current_coin = temp_coin;
-  //   }
+  // if (num_new_coins > 0 and num_new_coins <= 2) { // we check for <= 2 to avoid garbage values
+  //   num_new_coins = 0;
+  //   insertion_counter = current_insertion_counter;
+  //   Serial.println("Counter increased");
+  //   current_coin = cctalk->read_coin();
   //   ccTalk::print_coin_value(current_coin);
+  //   return true;
   // }
+  // return false;
+    if (current_reject_counter > reject_counter) {
+      reject_counter = current_reject_counter;
+      current_coin = Coins::INVALID_COIN;
+      ccTalk::print_coin_value(current_coin);
+      Serial.println("return");
+      return true;
+    }
+  return false;
 }
 
 void CoinAcceptor::reset_state() {
+  do {
+    insertion_counter = cctalk->get_insertion_counter();
+  } while (insertion_counter == 0);
   current_coin = Coins::INVALID_COIN;
 }

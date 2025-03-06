@@ -1,17 +1,9 @@
-#ifndef ccTalk_h
-#define ccTalk_h
+#ifndef CCTALK_H
+#define CCTALK_H
 #include "Arduino.h"
+#include "MillisTimer.h"
 
 #define MAXDATALENGTH 58
-
-class milistimer
-{
-  public:
-    void startt(int tdelay); // start the countdown with tdelay in miliseconds
-    bool isready(void);// return true if timer expired
-  private:
-    unsigned long target; 
-};
 
 class ccTalk : public Stream {
 public:
@@ -103,8 +95,8 @@ private:
   char get_data[MAXDATALENGTH];
   int length;
 
-  milistimer comt;
-  milistimer somedelay;// to handle the break after a comm error
+  MillisTimer comt;
+  MillisTimer somedelay;// to handle the break after a comm error
 };
 
 #endif

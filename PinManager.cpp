@@ -30,7 +30,7 @@ void PinManager::setup_pins() {
   mcp.pinMode(PIN_DATA2_OUT, OUTPUT);
   mcp.pinMode(PIN_DATA3_OUT, OUTPUT);
   mcp.pinMode(PIN_DATA4_OUT, OUTPUT);
-  mcp.pinMode(PIN_ACK_OUT, OUTPUT);
+  mcp.pinMode(PIN_PROG_OUT, OUTPUT);
 
   // Arduino Nano Every ======================================
   pinMode(LED_BUILTIN, OUTPUT);
@@ -44,9 +44,6 @@ void PinManager::setup_pins() {
 
   pinMode(PIN_LED_R, OUTPUT);
   pinMode(PIN_LED_G, OUTPUT);
-
-  // pinMode(PIN_SENS_UP, INPUT);
-  // pinMode(PIN_SENS_DW, INPUT);
 }
 
 bool PinManager::read_sensor_up() {

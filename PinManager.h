@@ -18,13 +18,13 @@ public:
   static const int PIN_DATA3_IN = 4;  // Data[3]  IN: Dout25
 
   // MCP23017 GPB0..7
-  static const int PIN_ENABLE_OUT =  8;   // Enable   OUT:  Din21
+  static const int PIN_ENABLE_OUT =  14;   // Enable   OUT:  Din21
   static const int PIN_DATA0_OUT  =  13;  // Data[0]  OUT:  Din22
   static const int PIN_DATA1_OUT  =  12;  // Data[1]  OUT:  Din23
   static const int PIN_DATA2_OUT  =  11;  // Data[2]  OUT:  Din24
   static const int PIN_DATA3_OUT  =  10;  // Data[3]  OUT:  Din25
   static const int PIN_DATA4_OUT  =  9;   // Data[4]  OUT:  Din26
-  static const int PIN_ACK_OUT    =  14;  // ACK      OUT:  Din27
+  static const int PIN_PROG_OUT   =  8;   // PROG     OUT:  Din27 for starting the program
   static const int PIN_ACK_IN     =  15;  // ACK      OUT:  Dout27 (interrupt)
 
   // Arduino Nano Every ==================================================
@@ -36,10 +36,6 @@ public:
   // UART (Software Serial). These are configured in the relevant classes.
   static const int PIN_HAND_TX = 10;
   static const int PIN_HAND_RX = 12;
-
-  // Coin detector
-  // static const int PIN_CCTALK_RX = 8;
-  // static const int PIN_CCTALK_TX = 9;
 
   // Solenoid
   static const int PIN_SOLENOID = 3;
@@ -62,7 +58,7 @@ public:
 
   private:
     static const uint8_t sensor_thr = 500;
-    static const uint8_t solenoid_pwm = 35;
+    static const uint8_t solenoid_pwm = 45;
 };
 
 #endif

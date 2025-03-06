@@ -1,23 +1,6 @@
 #include "Arduino.h"
 #include "ccTalk.h"
 #include "headers.h"
-//
-
-//The millistimer class used for delays
-void milistimer::startt(int tdelay) {// start the timer witth delay in miliseconds. 
-  unsigned long temp;
-  temp = millis();
-  target = temp + tdelay;
-};
-
-bool milistimer::isready(void) {//return true if timer is expired 
-  unsigned long temp;
-  temp = millis();
-  if (target - temp > 86400000) // one day
-    return true;
-  else
-    return false;
-};
 
 //constructor
 ccTalk::ccTalk(Stream *s) : stream(s) {
@@ -400,7 +383,7 @@ int ccTalk::read_coin(){
           default:
             coin_real_value = INVALID_COIN;
         }
-        print_coin_value(coin_real_value);
+        // print_coin_value(coin_real_value);
         buffered_events = 0;
         return coin_real_value;
       }

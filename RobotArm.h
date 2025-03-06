@@ -14,6 +14,8 @@ public:
 
   static void disable();
 
+  static void start_program();
+
   static void irq_update_state();
 
   static void irq_update_pose_state();
@@ -63,11 +65,11 @@ public:
   };
 
   static uint16_t get_pose();
+  static bool robot_is_referenced;
 private:
   static void print_pose(uint16_t id);
   static void print_command(uint16_t id);
   static uint16_t pose_state;
-  static bool flag_update_state;
   static bool flag_update_pose_state;
 };
 #endif
