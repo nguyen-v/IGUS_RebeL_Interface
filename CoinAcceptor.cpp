@@ -52,15 +52,15 @@ bool CoinAcceptor::coin_is_present() {
 }
 
 bool CoinAcceptor::coin_pig_1() {
-  return ((current_coin == Coins::CHF_010) || (current_coin == Coins::CHF_020) || (current_coin == Coins::CHF_050));
+  return ((current_coin == Coins::CHF_010) || (current_coin == Coins::CHF_020));
 }
 
 bool CoinAcceptor::coin_pig_2() {
-  return ((current_coin == Coins::CHF_500));
+  return ((current_coin == Coins::CHF_200) || (current_coin == Coins::CHF_500));
 }
 
 bool CoinAcceptor::coin_pig_3() {
-  return ((current_coin == Coins::CHF_100) || (current_coin == Coins::CHF_200));
+  return ((current_coin == Coins::CHF_100) || (current_coin == Coins::CHF_050));
 }
 
 bool CoinAcceptor::update_state() {

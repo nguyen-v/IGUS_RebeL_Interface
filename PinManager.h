@@ -29,8 +29,8 @@ public:
 
   // Arduino Nano Every ==================================================
 
-  // Interrupts for FAULT_IN and ACK_IN
-  static const int PIN_INTA_FAULT_IN = 2;
+  // Interrupts for REF_IN and ACK_IN
+  static const int PIN_INTA_REF_IN = 2;
   static const int PIN_INTB_ACK_IN = 4;
 
   // UART (Software Serial). These are configured in the relevant classes.

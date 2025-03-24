@@ -82,7 +82,7 @@ void setup() {
 
   // // Interrupts are active LOW (because of 100k pull-up)
   attachInterrupt(digitalPinToInterrupt(PinManager::PIN_INTB_ACK_IN), RobotArm::irq_update_pose_state, FALLING); // for synchronisation
-  attachInterrupt(digitalPinToInterrupt(PinManager::PIN_INTA_FAULT_IN), RobotArm::irq_update_state, FALLING);
+  attachInterrupt(digitalPinToInterrupt(PinManager::PIN_INTA_REF_IN), RobotArm::irq_update_state, FALLING);
 
   arm.disable();
   delay(5000);
@@ -192,7 +192,6 @@ void loop() {
     Serial.println("Coin detected");
     coin_acceptor.reset_state();
   }
-
 
   if (fsm_running) {
     fsm.run();

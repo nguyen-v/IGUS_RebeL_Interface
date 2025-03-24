@@ -34,7 +34,7 @@ void PinManager::setup_pins() {
 
   // Arduino Nano Every ======================================
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(PIN_INTA_FAULT_IN, INPUT_PULLUP);
+  pinMode(PIN_INTA_REF_IN, INPUT_PULLUP);
   pinMode(PIN_INTB_ACK_IN, INPUT_PULLUP);
 
   // Solenoid
