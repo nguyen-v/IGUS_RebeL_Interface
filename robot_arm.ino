@@ -6,6 +6,8 @@
 #include "MillisTimer.h"
 
 #define ADD_TRANSITIONS
+#define FALLBACK_NEW_COIN_START_PERIOD 4000
+#define SOLENOID_PULSE_OPEN_PERIOD 30000
 
 // Finite State Machine ===========================================
 
@@ -16,6 +18,7 @@ RobotArm arm = RobotArm();
 CoinAcceptor coin_acceptor = CoinAcceptor();
 
 MillisTimer tim;
+MillisTimer tim_solenoid;
 
 State* rest_state = fsm.addState(&rest_cb);
 State* pick_coin_state = fsm.addState(&pick_coin_cb);
@@ -100,6 +103,9 @@ void setup() {
   // Turn on the green LED
   digitalWrite(PinManager::PIN_LED_G, HIGH);
 
+  // Start solenoid timer
+  tim_solenoid.startt(SOLENOID_PULSE_OPEN_PERIOD);
+
   // Add the FSM transitions
   #ifdef ADD_TRANSITIONS
     rest_state->addTransition(&pick_coin_tran, pick_coin_state);
@@ -173,10 +179,18 @@ void loop() {
     }
   }
   bool new_coin = false;
-  if (!fsm_running) // to avoid issues with multiple coins
+  if (!fsm_running) { // to avoid issues with multiple coins
     new_coin = coin_acceptor.update_state();
+
+    // Every 30s in the REST state )when not in the FSM, we try to open the solenoid
+    // to mitigate cases where the solenoid might be stuck closed
+    if (tim_solenoid.isready()) {
+      tim_solenoid.startt(SOLENOID_PULSE_OPEN_PERIOD);
+      PinManager::open_solenoid();
+    }
+  }
   if (new_coin)
-    tim.startt(4000);
+    tim.startt(FALLBACK_NEW_COIN_START_PERIOD);
 
   hand.update_state();
   arm.update_state();
