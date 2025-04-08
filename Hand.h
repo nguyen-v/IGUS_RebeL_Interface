@@ -17,7 +17,7 @@
 
 class Hand {
 public:
-  Hand::Hand();
+  Hand();
   void init();
   bool move_finished();
   void close();
@@ -36,7 +36,7 @@ public:
 private:
   SoftwareSerial* maestro_serial;
   MicroMaestro* maestro;
-  static void values_to_target(const float values[HAND_DOFS], uint16_t targets[HAND_DOFS]);
+  static void values_to_target(const float values[HAND_DOFS], int targets[HAND_DOFS]);
   void move(const float angles[][HAND_DOFS], size_t num_rows);
   static const float min_values[HAND_DOFS];
   static const float max_values[HAND_DOFS];

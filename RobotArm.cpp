@@ -2,7 +2,9 @@
 #include <Arduino.h>
 #include "PinManager.h"
 
-static uint16_t RobotArm::pose_state = RobotArm::Poses::RESTING_POSE;
+uint16_t RobotArm::pose_state = RobotArm::Poses::RESTING_POSE;
+bool RobotArm::robot_is_referenced = false;
+bool RobotArm::flag_update_pose_state = false;
 
 void RobotArm::send_command(uint16_t cmd) {
     Serial.println(F("Sending command to the arm..."));
@@ -14,33 +16,56 @@ void RobotArm::send_command(uint16_t cmd) {
     uint16_t data4 = (cmd >> 4) & 0x01;
 
     // Write the bits to the output pins
-    digitalWrite(PinManager::PIN_DATA0_OUT, data0);
-    digitalWrite(PinManager::PIN_DATA1_OUT, data1);
-    digitalWrite(PinManager::PIN_DATA2_OUT, data2);
-    digitalWrite(PinManager::PIN_DATA3_OUT, data3);
-    digitalWrite(PinManager::PIN_DATA4_OUT, data4);
+    PinManager::mcp.digitalWrite(PinManager::PIN_DATA0_OUT, data0);
+    PinManager::mcp.digitalWrite(PinManager::PIN_DATA1_OUT, data1);
+    PinManager::mcp.digitalWrite(PinManager::PIN_DATA2_OUT, data2);
+    PinManager::mcp.digitalWrite(PinManager::PIN_DATA3_OUT, data3);
+    PinManager::mcp.digitalWrite(PinManager::PIN_DATA4_OUT, data4);
 
     // Trigger the acknowledgment signal
     delay(200); // Command propagation delay
-    digitalWrite(PinManager::PIN_ACK_OUT, HIGH);
+    // PinManager::mcp.digitalWrite(PinManager::PIN_ACK_OUT, HIGH);
     print_command(cmd);
 }
 
-void RobotArm::enable_arm() {
-    digitalWrite(PinManager::PIN_ENABLE_OUT, HIGH);
+void RobotArm::enable() {
+    PinManager::mcp.digitalWrite(PinManager::PIN_ENABLE_OUT, HIGH);
     Serial.println(F("Enabling the arm..."));
 }
 
-void RobotArm::disable_arm() {
-    digitalWrite(PinManager::PIN_ENABLE_OUT, LOW);
-    Serial.println(F("Fault signal detected, disabling the arm..."));
+void RobotArm::disable() {
+    PinManager::mcp.digitalWrite(PinManager::PIN_ENABLE_OUT, LOW);
+}
+
+void RobotArm::start_program() {
+    PinManager::mcp.digitalWrite(PinManager::PIN_PROG_OUT, LOW);
+    delay(5000);
+    PinManager::mcp.digitalWrite(PinManager::PIN_PROG_OUT, HIGH);
+}
+
+void RobotArm::irq_update_state() {
+  digitalWrite(LED_BUILTIN, HIGH);
+  robot_is_referenced = true;
 }
 
 void RobotArm::update_state() {
-  if (digitalRead(PinManager::PIN_FAULT_IN) == LOW)
-    enable_arm();
-  else
-    disable_arm();
+  if (robot_is_referenced) {
+    robot_is_referenced = false;
+    Serial.println("Robot is referenced. Starting program.");
+    start_program();
+    // disable();
+  }
+  if (flag_update_pose_state) {
+    Serial.println("Update pose state flag set.");
+    flag_update_pose_state = false;
+    uint16_t data0 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA0_IN);
+    uint16_t data1 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA1_IN);
+    uint16_t data2 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA2_IN);
+    uint16_t data3 = !PinManager::mcp.digitalRead(PinManager::PIN_DATA3_IN);
+    pose_state = (data3 << 3) | (data2 << 2) | (data1 << 1) | (data0 << 0);
+    // PinManager::mcp.digitalWrite(PinManager::PIN_ACK_OUT, LOW);
+    print_pose(pose_state);
+  }
 }
 
 void RobotArm::print_pose(uint16_t id) {
@@ -161,13 +186,11 @@ void RobotArm::print_command(uint16_t id) {
     }
 }
 
-void RobotArm::update_pose_state() {
-  Serial.println(F("Update pose interrupt triggered"));
-  uint16_t data0 = digitalRead(PinManager::PIN_DATA0_IN);
-  uint16_t data1 = digitalRead(PinManager::PIN_DATA1_IN);
-  uint16_t data2 = digitalRead(PinManager::PIN_DATA2_IN);
-  uint16_t data3 = digitalRead(PinManager::PIN_DATA3_IN);
-  pose_state = (data3 << 3) | (data2 << 2) | (data1 << 1) | (data0 << 0);
-  digitalWrite(PinManager::PIN_ACK_OUT, LOW);
-  print_pose(pose_state);
+void RobotArm::irq_update_pose_state() {
+  digitalWrite(LED_BUILTIN, HIGH);
+  flag_update_pose_state = true;
+}
+
+uint16_t RobotArm::get_pose() {
+  return pose_state;
 }

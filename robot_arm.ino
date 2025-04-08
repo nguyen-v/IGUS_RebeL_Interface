@@ -2,14 +2,23 @@
 #include "RobotArm.h"
 #include "PinManager.h"
 #include "Hand.h"
+#include "CoinAcceptor.h"
+#include "MillisTimer.h"
 
 #define ADD_TRANSITIONS
+#define FALLBACK_NEW_COIN_START_PERIOD 4000
+#define SOLENOID_PULSE_OPEN_PERIOD 30000
 
 // Finite State Machine ===========================================
 
 StateMachine fsm = StateMachine();
 PinManager pin_manager = PinManager();
 Hand hand = Hand();
+RobotArm arm = RobotArm();
+CoinAcceptor coin_acceptor = CoinAcceptor();
+
+MillisTimer tim;
+MillisTimer tim_solenoid;
 
 State* rest_state = fsm.addState(&rest_cb);
 State* pick_coin_state = fsm.addState(&pick_coin_cb);
@@ -30,21 +39,8 @@ State* special_move_3_state = fsm.addState(&special_move_3_cb);
 State* special_move_bin_state = fsm.addState(&special_move_bin_cb);
 
 using Poses = RobotArm::Poses;
-
-enum Coins {
-  NO_COINS = 0,  // No coin
-  INVALID_COIN,  // Invalid coin
-  CHF_005,       // 5 cents
-  CHF_010,       // 10 cents
-  CHF_020,       // 20 cents
-  CHF_050,       // 50 cents
-  CHF_100,       // 1 CHF
-  CHF_200,       // 2 CHF
-  CHF_500        // 5 CHF
-};
-
-// Coin type
-uint8_t coin_type = INVALID_COIN;
+using Commands = RobotArm::Commands;
+using Coins = ccTalk::Coins;
 
 // Force next state (for debugging)
 bool next = false;
@@ -52,6 +48,11 @@ bool next1 = false;
 bool next2 = false;
 bool next3 = false;
 bool nextbin = false;
+
+// Whether the FSM is running or not
+bool fsm_running = false;
+
+bool end_of_sequence = false;
 
 void reset_next() {
   next = false;
@@ -66,16 +67,44 @@ void reset_next() {
 void setup() {
 
   Serial.begin(115200);
+  Serial.println("Starting up...");
 
   pin_manager.setup_pins();
+
+  // Turn off LEDs for now
+  Serial.println("Turning off LEDs...");
+  digitalWrite(PinManager::PIN_LED_R, LOW);
+  digitalWrite(PinManager::PIN_LED_G, LOW);
+
   hand.init();
 
-  // Interrupts
-  attachInterrupt(digitalPinToInterrupt(PinManager::PIN_ACK_IN), RobotArm::update_pose_state, RISING); // for synchronisation
-  attachInterrupt(digitalPinToInterrupt(PinManager::PIN_FAULT_IN), RobotArm::update_state, RISING);
+  hand.close();
 
+  coin_acceptor.init();
+  coin_acceptor.reset_state();
+
+  // // Interrupts are active LOW (because of 100k pull-up)
+  attachInterrupt(digitalPinToInterrupt(PinManager::PIN_INTB_ACK_IN), RobotArm::irq_update_pose_state, FALLING); // for synchronisation
+  attachInterrupt(digitalPinToInterrupt(PinManager::PIN_INTA_REF_IN), RobotArm::irq_update_state, FALLING);
+
+  arm.disable();
+  delay(5000);
   // Enable the robot arm
-  RobotArm::enable_arm();
+  arm.enable();
+  
+  arm.send_command(Commands::REST_TO_REST);
+
+  while(!RobotArm::robot_is_referenced)
+    delay(500);
+
+  // Open the solenoid
+  PinManager::open_solenoid();
+
+  // Turn on the green LED
+  digitalWrite(PinManager::PIN_LED_G, HIGH);
+
+  // Start solenoid timer
+  tim_solenoid.startt(SOLENOID_PULSE_OPEN_PERIOD);
 
   // Add the FSM transitions
   #ifdef ADD_TRANSITIONS
@@ -95,8 +124,8 @@ void setup() {
     bin_state->addTransition(&open_fingers_tran, open_fingers_state);
 
     open_fingers_state->addTransition(&special_1_tran, special_1_state);
-    open_fingers_state->addTransition(&special_2_tran, special_1_state);
-    open_fingers_state->addTransition(&special_3_tran, special_1_state);
+    open_fingers_state->addTransition(&special_2_tran, special_2_state);
+    open_fingers_state->addTransition(&special_3_tran, special_3_state);
     open_fingers_state->addTransition(&special_bin_tran, special_bin_state);
 
     special_1_state->addTransition(&special_move_1_tran, special_move_1_state);
@@ -132,20 +161,65 @@ void loop() {
     } else if (input == 'b') {
       nextbin = true;
       Serial.println(F("Going to next state bin"));
+    } else if (input == 'o') {
+      hand.open();
+    } else if (input == 'c') {
+      hand.close();
+    } else if (input == 'r') {
+      hand.natural();
+    } else if (input == 'g') {
+      hand.grasping_pose();
+    } else if (input == 't') {
+      hand.grasp_coin();
+    } else if (input == 'd') {
+      hand
+      .drop_coin();
+    } else if (input == 'p') {
+      hand.special_move_2(); // pointing
     }
   }
+  bool new_coin = false;
+  if (!fsm_running) { // to avoid issues with multiple coins
+    new_coin = coin_acceptor.update_state();
+
+    // Every 30s in the REST state )when not in the FSM, we try to open the solenoid
+    // to mitigate cases where the solenoid might be stuck closed
+    if (tim_solenoid.isready()) {
+      tim_solenoid.startt(SOLENOID_PULSE_OPEN_PERIOD);
+      PinManager::open_solenoid();
+    }
+  }
+  if (new_coin)
+    tim.startt(FALLBACK_NEW_COIN_START_PERIOD);
 
   hand.update_state();
-  // check for FSM state changes at regular intervals
-  fsm.run();
-  delay(500);
+  arm.update_state();
 
+  if (new_coin || PinManager::read_sensor_down()) {
+    digitalWrite(PinManager::PIN_LED_G, LOW);
+    digitalWrite(PinManager::PIN_LED_R, HIGH);
+    PinManager::close_solenoid();
+    fsm_running = true;
+  }
+
+  if (PinManager::read_sensor_up()) {
+    Serial.println("Coin detected");
+    coin_acceptor.reset_state();
+  }
+
+  if (fsm_running) {
+    fsm.run();
+    delay(100);
+  }
+  delay(10);
+  // digitalWrite(LED_BUILTIN, LOW);
 }
 
 // Transitions ================================================================
 
 bool pick_coin_tran() {
-  if ((RobotArm::pose_state == Poses::RESTING_POSE) || next) {
+  if (((RobotArm::get_pose() == Poses::RESTING_POSE) && (PinManager::read_sensor_down()) || next || tim.isready())) {
+    tim.disable();
     reset_next();
     return true;
   }
@@ -153,7 +227,7 @@ bool pick_coin_tran() {
 }
 
 bool pick_coin_ready_tran() {
-  if ((RobotArm::pose_state == Poses::PICK_COIN_POSE) || next) { // also check for coin here
+  if ((RobotArm::get_pose() == Poses::PICK_COIN_POSE) || next) {
     reset_next();
     return true;
   }
@@ -161,20 +235,18 @@ bool pick_coin_ready_tran() {
 }
 
 bool close_fingers_tran() {
-  if ((RobotArm::pose_state == Poses::PICK_COIN_READY_POSE) || next) {
+  if ((RobotArm::get_pose() == Poses::PICK_COIN_READY_POSE) || next) {
     reset_next();
     return true;
   }
   return false;
 }
 
-// For pig_x_tran and bin_tran, maybe wait for a flag for fingers to finish closing?
-
 bool pig_1_tran() {
-  if ((RobotArm::pose_state == Poses::PICK_COIN_READY_POSE) && 
-      (coin_type == CHF_005) || (coin_type == CHF_010) ||
-      (coin_type == CHF_020) || (coin_type == CHF_050)
+  if ((RobotArm::get_pose() == Poses::PICK_COIN_READY_POSE) && coin_acceptor.coin_pig_1()
       && (hand.move_finished()) || next1) {
+  // if ((RobotArm::get_pose() == Poses::PICK_COIN_READY_POSE)
+  //     && (hand.move_finished()) && next1) {
     reset_next();
     return true;
   }
@@ -182,9 +254,10 @@ bool pig_1_tran() {
 }
 
 bool pig_2_tran() {
-  if ((RobotArm::pose_state == Poses::PICK_COIN_READY_POSE) &&
-      (coin_type == CHF_100) || (coin_type == CHF_200)
+  if ((RobotArm::get_pose() == Poses::PICK_COIN_READY_POSE) && coin_acceptor.coin_pig_2()
       && (hand.move_finished()) || next2) {
+  // if ((RobotArm::get_pose() == Poses::PICK_COIN_READY_POSE)
+  //     && (hand.move_finished()) && next2) {
     reset_next();
     return true;
   }
@@ -192,9 +265,10 @@ bool pig_2_tran() {
 }
 
 bool pig_3_tran() {
-  if ((RobotArm::pose_state == Poses::PICK_COIN_READY_POSE) &&
-      (coin_type == CHF_500)
+  if ((RobotArm::get_pose() == Poses::PICK_COIN_READY_POSE) && coin_acceptor.coin_pig_3()
       && (hand.move_finished()) || next3) {
+  // if ((RobotArm::get_pose() == Poses::PICK_COIN_READY_POSE)
+  //     && (hand.move_finished()) && next3) {
     reset_next();
     return true;
   }
@@ -202,9 +276,10 @@ bool pig_3_tran() {
 }
 
 bool bin_tran() {
-  if ((RobotArm::pose_state == Poses::PICK_COIN_READY_POSE) &&
-    (coin_type == INVALID_COIN)
+  if ((RobotArm::get_pose() == Poses::PICK_COIN_READY_POSE) && !coin_acceptor.coin_is_valid()
     && (hand.move_finished()) || nextbin) {
+  // if ((RobotArm::get_pose() == Poses::PICK_COIN_READY_POSE)
+  //   && (hand.move_finished()) && nextbin) {
     reset_next();
     return true;
   }
@@ -212,18 +287,16 @@ bool bin_tran() {
 }
 
 bool open_fingers_tran() {
-  if ((RobotArm::pose_state == Poses::PIG_1_POSE) || (RobotArm::pose_state == Poses::PIG_2_POSE) ||
-      (RobotArm::pose_state == Poses::PIG_3_POSE) || (RobotArm::pose_state == Poses::BIN_POSE) || next) {
+  if ((RobotArm::get_pose() == Poses::PIG_1_POSE) || (RobotArm::get_pose() == Poses::PIG_2_POSE) ||
+      (RobotArm::get_pose() == Poses::PIG_3_POSE) || (RobotArm::get_pose() == Poses::BIN_POSE) || next) {
     reset_next();
     return true;
   }
   return false;
 }
 
-// For the special_x_tran, maybe wait for a flag for fingers to finish opening?
-
 bool special_1_tran() {
-  if ((RobotArm::pose_state == Poses::PIG_1_POSE)
+  if ((RobotArm::get_pose() == Poses::PIG_1_POSE)
   && (hand.move_finished()) || next1) {
     reset_next();
     return true;
@@ -232,7 +305,7 @@ bool special_1_tran() {
 }
 
 bool special_2_tran() {
-  if ((RobotArm::pose_state == Poses::PIG_2_POSE)
+  if ((RobotArm::get_pose() == Poses::PIG_2_POSE)
   && (hand.move_finished()) || next2) {
     reset_next();
     return true;
@@ -241,7 +314,7 @@ bool special_2_tran() {
 }
 
 bool special_3_tran() {
-  if ((RobotArm::pose_state == Poses::PIG_3_POSE)
+  if ((RobotArm::get_pose() == Poses::PIG_3_POSE)
   && (hand.move_finished()) || next3) {
     reset_next();
     return true;
@@ -250,7 +323,7 @@ bool special_3_tran() {
 }
 
 bool special_bin_tran() {
-  if ((RobotArm::pose_state == Poses::BIN_POSE)
+  if ((RobotArm::get_pose() == Poses::BIN_POSE)
   && (hand.move_finished()) || nextbin) {
     reset_next();
     return true;
@@ -259,7 +332,7 @@ bool special_bin_tran() {
 }
 
 bool special_move_1_tran() {
-  if ((RobotArm::pose_state == Poses::SPECIAL_1_POSE) || next1) {
+  if ((RobotArm::get_pose() == Poses::SPECIAL_1_POSE) || next1) {
     reset_next();
     return true;
   }
@@ -267,7 +340,7 @@ bool special_move_1_tran() {
 }
 
 bool special_move_2_tran() {
-  if (RobotArm::pose_state == Poses::SPECIAL_2_POSE || next2) {
+  if (RobotArm::get_pose() == Poses::SPECIAL_2_POSE || next2) {
     reset_next();
     return true;
   }
@@ -275,7 +348,7 @@ bool special_move_2_tran() {
 }
 
 bool special_move_3_tran() {
-  if (RobotArm::pose_state == Poses::SPECIAL_3_POSE || next3) {
+  if (RobotArm::get_pose() == Poses::SPECIAL_3_POSE || next3) {
     reset_next();
     return true;
   }
@@ -283,7 +356,7 @@ bool special_move_3_tran() {
 }
 
 bool special_move_bin_tran() {
-  if (RobotArm::pose_state == Poses::SPECIAL_BIN_POSE || nextbin) {
+  if (RobotArm::get_pose() == Poses::SPECIAL_BIN_POSE || nextbin) {
     reset_next();
     return true;
   }
@@ -291,8 +364,8 @@ bool special_move_bin_tran() {
 }
 
 bool rest_tran() {
-  if ((RobotArm::pose_state == Poses::SPECIAL_MOVE_1_POSE) || (RobotArm::pose_state == Poses::SPECIAL_MOVE_2_POSE) ||
-      (RobotArm::pose_state == Poses::SPECIAL_MOVE_3_POSE) || (RobotArm::pose_state == Poses::SPECIAL_MOVE_BIN_POSE) || next) {
+  if ((RobotArm::get_pose() == Poses::SPECIAL_MOVE_1_POSE) || (RobotArm::get_pose() == Poses::SPECIAL_MOVE_2_POSE) ||
+      (RobotArm::get_pose() == Poses::SPECIAL_MOVE_3_POSE) || (RobotArm::get_pose() == Poses::SPECIAL_MOVE_BIN_POSE) || next) {
     reset_next();
     return true;
   }
@@ -302,113 +375,162 @@ bool rest_tran() {
 // Callback functions ===============================================================
 
 void rest_cb() {
-  Serial.println("Resting state callback called");
-  switch (RobotArm::pose_state) {
+  // Serial.println("Resting state callback called");
+  switch (RobotArm::get_pose()) {
     case Poses::SPECIAL_MOVE_1_POSE:
-      RobotArm::send_command(RobotArm::Commands::SPECIAL_MOVE_1_TO_REST);
+      arm.send_command(Commands::SPECIAL_MOVE_1_TO_REST);
+      hand.close();
+      end_of_sequence = true;
       break;
     case Poses::SPECIAL_MOVE_2_POSE:
-      RobotArm::send_command(RobotArm::Commands::SPECIAL_MOVE_2_TO_REST);
+      arm.send_command(Commands::SPECIAL_MOVE_2_TO_REST);
+      hand.close();
+      end_of_sequence = true;
       break;
     case Poses::SPECIAL_MOVE_3_POSE:
-      RobotArm::send_command(RobotArm::Commands::SPECIAL_MOVE_3_TO_REST);
+      arm.send_command(Commands::SPECIAL_MOVE_3_TO_REST);
+      hand.close();
+      end_of_sequence = true;
       break;
     case Poses::SPECIAL_MOVE_BIN_POSE:
-      RobotArm::send_command(RobotArm::Commands::SPECIAL_MOVE_BIN_TO_REST);
+      arm.send_command(Commands::SPECIAL_MOVE_BIN_TO_REST);
+      hand.close();
+      end_of_sequence = true;
+      break;
+    case Poses::RESTING_POSE:
+      if (end_of_sequence) {
+        fsm_running = false;
+        end_of_sequence = false;
+        if (!PinManager::read_sensor_down()) {
+          PinManager::open_solenoid();
+          hand.close();
+          digitalWrite(PinManager::PIN_LED_G, HIGH);
+          digitalWrite(PinManager::PIN_LED_R, LOW);
+        } else {
+          coin_acceptor.reset_state();
+        }
+        // }
+      }
       break;
     default:
-      // RobotArm::send_command(RobotArm::Commands::REST_TO_REST);
       break;
   }
-  hand.close();
 }
 
 void pick_coin_cb() {
-  Serial.println("Pick Coin state callback called");
-  RobotArm::send_command(RobotArm::Commands::REST_TO_PICK_COIN);
-  hand.natural(); // natural hand pose
+  // Serial.println("Pick Coin state callback called");
+  if (fsm.executeOnce) {
+    arm.send_command(Commands::REST_TO_PICK_COIN);
+    hand.natural(); // natural hand pose;
+  }
 }
 
 void pick_coin_ready_cb() {
-  Serial.println("Pick Coin Ready state callback called");
-  RobotArm::send_command(RobotArm::Commands::PICK_COIN_TO_PICK_COIN_READY);
-  hand.grasping_pose();
+  // Serial.println("Pick Coin Ready state callback called");
+  if (fsm.executeOnce) {
+    arm.send_command(Commands::PICK_COIN_TO_PICK_COIN_READY);
+    hand.grasping_pose();
+  }
 }
 
 void close_fingers_cb() {
-  Serial.println("Close Fingers state callback called");
-  hand.grasp_coin();
+  // Serial.println("Close Fingers state callback called");
+  if (fsm.executeOnce)
+    hand.grasp_coin();
 }
 
 void pig_1_cb() {
-  Serial.println("Pig 1 state callback called");
-  RobotArm::send_command(RobotArm::Commands::PICK_COIN_READY_TO_PIG_1);
+  // Serial.println("Pig 1 state callback called");
+  if (fsm.executeOnce)
+    arm.send_command(Commands::PICK_COIN_READY_TO_PIG_1);
 }
 
 void pig_2_cb() {
-  Serial.println("Pig 2 state callback called");
-  RobotArm::send_command(RobotArm::Commands::PICK_COIN_READY_TO_PIG_2);
+  // Serial.println("Pig 2 state callback called");
+  if (fsm.executeOnce)
+    arm.send_command(Commands::PICK_COIN_READY_TO_PIG_2);
 }
 
 void pig_3_cb() {
-  Serial.println("Pig 3 state callback called");
-  RobotArm::send_command(RobotArm::Commands::PICK_COIN_READY_TO_PIG_3);
+  // Serial.println("Pig 3 state callback called");
+  if (fsm.executeOnce)
+    arm.send_command(Commands::PICK_COIN_READY_TO_PIG_3);
 }
 
 void bin_cb() {
-  Serial.println("Bin state callback called");
-  RobotArm::send_command(RobotArm::Commands::PICK_COIN_READY_TO_BIN);
+  // Serial.println("Bin state callback called");
+  if (fsm.executeOnce)
+    arm.send_command(Commands::PICK_COIN_READY_TO_BIN);
 }
 
 void open_fingers_cb() {
-  Serial.println("Open Fingers state callback called");
-  hand.drop_coin();
+  // Serial.println("Open Fingers state callback called");
+  if (fsm.executeOnce)
+    hand.drop_coin();
 }
 
 void special_1_cb() {
-  Serial.println("Special 1 state callback called");
-  RobotArm::send_command(RobotArm::Commands::PIG_1_TO_SPECIAL_1);
-  hand.natural();
+  // Serial.println("Special 1 state callback called");
+  if (fsm.executeOnce) {
+    arm.send_command(Commands::PIG_1_TO_SPECIAL_1);
+    hand.close();
+  }
 }
 
 void special_2_cb() {
-  Serial.println("Special 2 state callback called");
-  RobotArm::send_command(RobotArm::Commands::PIG_2_TO_SPECIAL_2);
-  hand.natural();
+  // Serial.println("Special 2 state callback called");
+  if (fsm.executeOnce) {
+    arm.send_command(Commands::PIG_2_TO_SPECIAL_2);
+    hand.close();
+  }
 }
 
 void special_3_cb() {
-  Serial.println("Special 3 state callback called");
-  RobotArm::send_command(RobotArm::Commands::PIG_3_TO_SPECIAL_3);
-  hand.natural();
+  // Serial.println("Special 3 state callback called");
+  if (fsm.executeOnce) {
+    arm.send_command(Commands::PIG_3_TO_SPECIAL_3);
+    hand.close();
+  }
 }
 
 void special_bin_cb() {
-  Serial.println("Special Bin state callback called");
-  RobotArm::send_command(RobotArm::Commands::BIN_TO_SPECIAL_BIN);
-  hand.natural();
+  // Serial.println("Special Bin state callback called");
+  if (fsm.executeOnce) {
+    arm.send_command(Commands::BIN_TO_SPECIAL_BIN);
+    // hand.natural();
+    hand.close();
+  }
 }
 
 void special_move_1_cb() {
-  Serial.println("Special Move 1 state callback called");
-  RobotArm::send_command(RobotArm::Commands::SPECIAL_1_TO_SPECIAL_MOVE_1);
-  hand.special_move_1();
+  // Serial.println("Special Move 1 state callback called");
+  if (fsm.executeOnce) {
+    arm.send_command(Commands::SPECIAL_1_TO_SPECIAL_MOVE_1);
+    hand.special_move_1();
+  }
 }
 
 void special_move_2_cb() {
-  Serial.println("Special Move 2 state callback called");
-  RobotArm::send_command(RobotArm::Commands::SPECIAL_2_TO_SPECIAL_MOVE_2);
-  hand.special_move_2();
+  // Serial.println("Special Move 2 state callback called");
+  if (fsm.executeOnce) {
+    arm.send_command(Commands::SPECIAL_2_TO_SPECIAL_MOVE_2);
+    hand.special_move_2();
+  }
 }
 
 void special_move_3_cb() {
-  Serial.println("Special Move 3 state callback called");
-  RobotArm::send_command(RobotArm::Commands::SPECIAL_3_TO_SPECIAL_MOVE_3);
-  hand.special_move_3();
+  // Serial.println("Special Move 3 state callback called");
+  if (fsm.executeOnce) {
+    arm.send_command(Commands::SPECIAL_3_TO_SPECIAL_MOVE_3);
+    hand.special_move_3();
+  }
 }
 
 void special_move_bin_cb() {
-  Serial.println("Special Move Bin state callback called");
-  RobotArm::send_command(RobotArm::Commands::SPECIAL_BIN_TO_SPECIAL_MOVE_BIN);
-  hand.special_move_bin();
+  // Serial.println("Special Move Bin state callback called");
+  if (fsm.executeOnce) {
+    arm.send_command(Commands::SPECIAL_BIN_TO_SPECIAL_MOVE_BIN);
+    // hand.special_move_bin();
+    hand.close();
+  }
 }
